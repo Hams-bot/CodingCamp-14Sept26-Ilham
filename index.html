@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!--
+    Inline theme script — runs synchronously BEFORE any stylesheet or body content
+    is parsed. This prevents a flash of the wrong theme on page load (Requirement 8.4).
+  -->
+  <script>
+    (function () {
+      var theme = localStorage.getItem('ebv_theme');
+      if (theme === 'dark' || theme === 'light') {
+        document.documentElement.setAttribute('data-theme', theme);
+      } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Expense &amp; Budget Visualizer</title>
+
+  <!-- Application stylesheet -->
+  <link rel="stylesheet" href="css/style.css" />
+
+  <!--
+    Chart.js v4.4.0 — loaded from CDN (Requirement 1.2).
+    The onerror handler reveals the #chartError fallback element if the CDN
+    script fails to load (Requirement 6.1).
+  -->
+  <script
+    src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
+    onerror="document.getElementById('chartError').hidden = false;"
+  ></script>
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- ================================================
+         HEADER REGION — Balance, warning banner, and
+         theme toggle (Requirements 5.1, 8.1, 10.3)
+    ================================================ -->
+    <header class="header-region">
+
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+        <div>
+          <p style="font-size: 0.8rem; opacity: 0.7; margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Total Spent</p>
+          <h1 id="balanceDisplay">$0.00</h1>
+        </div>
+
+        <!-- Theme toggle (Requirement 8.1) -->
+        <button id="themeToggle" class="btn-secondary" aria-label="Switch color theme">
+          ☀️ Light Mode
+        </button>
+      </div>
+
+      <!-- Overspending warning banner — hidden by default (Requirement 10.3) -->
+      <div id="warningBanner" hidden role="alert" aria-live="assertive">
+        ⚠️ You have exceeded your spending limit!
+      </div>
+
+    </header>
+
+    <!-- ================================================
+         FORM REGION — Add a new transaction
+         (Requirements 3.1 – 3.7)
+    ================================================ -->
+    <section class="form-region" aria-labelledby="formHeading">
+      <h2 id="formHeading" style="margin-bottom: 1rem; font-size: 1.125rem;">Add Transaction</h2>
+
+      <form id="transactionForm" novalidate>
+
+        <!-- Transaction Name -->
+        <div class="field-group">
+          <label for="itemName">Name</label>
+          <input
+            type="text"
+            id="itemName"
+            name="itemName"
+            placeholder="e.g. Lunch, Bus fare…"
+            autocomplete="off"
+            aria-describedby="itemNameError"
+          />
+          <span
+            id="itemNameError"
+            class="error-label"
+            role="alert"
+            aria-live="polite"
+          ></span>
+        </div>
+
+        <!-- Amount -->
+        <div class="field-group">
+          <label for="amount">Amount ($)</label>
+          <input
+            type="number"
+            id="amount"
+            name="amount"
+            placeholder="0.00"
+            min="0.01"
+            step="0.01"
+            aria-describedby="amountError"
+          />
+          <span
+            id="amountError"
+            class="error-label"
+            role="alert"
+            aria-live="polite"
+          ></span>
+        </div>
+
+        <!-- Category (Requirement 3.2 — exactly three options) -->
+        <div class="field-group">
+          <label for="category">Category</label>
+          <select id="category" name="category" aria-describedby="categoryError">
+            <option value="">Select a category…</option>
+            <option value="Food">Food</option>
+            <option value="Transport">Transport</option>
+            <option value="Fun">Fun</option>
+          </select>
+          <span
+            id="categoryError"
+            class="error-label"
+            role="alert"
+            aria-live="polite"
+          ></span>
+        </div>
+
+        <!-- Submit (Requirement 3.3) -->
+        <button type="submit" class="btn-primary">Add Transaction</button>
+
+      </form>
+
+      <!-- -----------------------------------------------
+           Spend Limit Controls (Requirements 10.1 – 10.6)
+      ----------------------------------------------- -->
+      <div class="spend-limit-row" aria-label="Spending limit controls">
+        <label for="spendLimit" style="font-size: 0.875rem; font-weight: 600; flex-shrink: 0;">
+          Spend Limit ($)
+        </label>
+        <input
+          type="number"
+          id="spendLimit"
+          name="spendLimit"
+          placeholder="e.g. 500"
+          min="0.01"
+          step="0.01"
+          aria-describedby="spendLimitError"
+        />
+        <button id="setLimitBtn" class="btn-secondary" type="button">Set Limit</button>
+        <button id="clearLimitBtn" class="btn-secondary" type="button">Clear</button>
+      </div>
+      <span
+        id="spendLimitError"
+        class="error-label"
+        role="alert"
+        aria-live="polite"
+        style="display: block; margin-top: 0.25rem;"
+      ></span>
+
+    </section>
+
+    <!-- ================================================
+         CHART REGION — Pie chart visualization
+         (Requirements 6.1 – 6.6)
+    ================================================ -->
+    <section class="chart-region" aria-labelledby="chartHeading">
+      <h2 id="chartHeading" style="margin-bottom: 1rem; font-size: 1.125rem; align-self: flex-start;">
+        Spending by Category
+      </h2>
+
+      <!--
+        The canvas is shown when there is chart data.
+        initChart() / updateChart() toggle visibility.
+      -->
+      <canvas id="spendingChart" aria-label="Pie chart of spending by category" role="img"></canvas>
+
+      <!-- Shown when there are no transactions to chart (Requirement 6.5) -->
+      <p id="chartEmpty" hidden>No spending data yet.</p>
+
+      <!-- Shown when Chart.js CDN fails to load (Requirement 6.1) -->
+      <p id="chartError" hidden>
+        Chart could not be loaded. Please check your internet connection and reload the page.
+      </p>
+
+    </section>
+
+    <!-- ================================================
+         LIST REGION — Transaction list and sort control
+         (Requirements 4.1 – 4.6, 9.1 – 9.5)
+    ================================================ -->
+    <section class="list-region" aria-labelledby="listHeading">
+
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem;">
+        <h2 id="listHeading" style="font-size: 1.125rem;">Transactions</h2>
+
+        <!-- Sort control (Requirement 9.1 — three sort options) -->
+        <div class="sort-row" style="margin-bottom: 0;">
+          <label for="sortSelect">Sort by</label>
+          <select id="sortSelect" aria-label="Sort transactions by">
+            <option value="default">Default (Date Added)</option>
+            <option value="amount-asc">Amount: Low to High</option>
+            <option value="category-asc">Category (A–Z)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Empty state (Requirement 4.6) — shown when no transactions exist -->
+      <p id="listEmpty">No transactions yet.</p>
+
+      <!-- Error fallback — hidden by default -->
+      <p id="listError" hidden>Could not display transactions.</p>
+
+      <!--
+        The <ul> is populated by renderTransactionList() in js/script.js.
+        Items follow the structure:
+          <li class="transaction-item" data-id="{id}">
+            <span class="tx-name">{name}</span>
+            <span class="tx-category category--{category}">{category}</span>
+            <span class="tx-amount">{formatted}</span>
+            <button class="btn-delete" data-id="{id}" aria-label="Delete {name}">×</button>
+          </li>
+        (Requirement 4.1)
+      -->
+      <ul id="transactionList" aria-label="Transaction history" aria-live="polite"></ul>
+
+    </section>
+
+  </div><!-- /.app-container -->
+
+  <!-- Application logic — loaded after the body so the DOM is available -->
+  <script src="js/script.js"></script>
+
+</body>
+</html>

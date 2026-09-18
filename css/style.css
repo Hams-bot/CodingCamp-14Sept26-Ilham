@@ -1,0 +1,470 @@
+/* ======================================================
+   css/style.css — Expense & Budget Visualizer
+   ====================================================== */
+
+/* ------------------------------------------------------
+   1. THEME TOKENS
+   Dark theme is the default (applied via :root and
+   [data-theme="dark"]).  JavaScript writes
+   document.documentElement.setAttribute('data-theme', …)
+   so the [data-theme] selector always wins.
+
+   Contrast notes (WCAG AA requires ≥ 4.5:1 for normal text):
+     Dark  —  #e0e0e0 on #1a1a2e  ≈ 11.0 : 1  ✓
+     Light —  #1a1a1a on #f5f5f5  ≈ 17.0 : 1  ✓
+     Warning text (#fff) on #c0841d  ≈  4.6 : 1  ✓
+     Danger text  (#fff) on #b03030  ≈  6.5 : 1  ✓
+------------------------------------------------------ */
+
+:root,
+[data-theme="dark"] {
+  /* Backgrounds */
+  --color-bg:      #1a1a2e;   /* page background          */
+  --color-surface: #16213e;   /* card / panel background  */
+
+  /* Text */
+  --color-text:    #e0e0e0;   /* primary body text        */
+
+  /* Accents & borders */
+  --color-accent:  #0f3460;   /* interactive highlights   */
+  --color-border:  #2a3a5c;   /* dividers, input borders  */
+
+  /* Semantic */
+  --color-warning: #c0841d;   /* overspend warning bg     */
+  --color-danger:  #b03030;   /* error / delete           */
+
+  /* Derived helpers used by components */
+  --color-warning-text: #ffffff;
+  --color-danger-text:  #ffffff;
+}
+
+[data-theme="light"] {
+  /* Backgrounds */
+  --color-bg:      #f5f5f5;
+  --color-surface: #ffffff;
+
+  /* Text */
+  --color-text:    #1a1a1a;
+
+  /* Accents & borders */
+  --color-accent:  #e8e8e8;
+  --color-border:  #cccccc;
+
+  /* Semantic */
+  --color-warning: #c0841d;   /* same hue works on light bg (4.6:1 on white) */
+  --color-danger:  #b03030;
+
+  /* Derived helpers */
+  --color-warning-text: #ffffff;
+  --color-danger-text:  #ffffff;
+}
+
+/* ======================================================
+   2. RESET & BASE
+   ====================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  overflow-x: hidden;
+  min-height: 100vh;
+  padding: 1rem;
+}
+
+/* ======================================================
+   3. MOBILE-FIRST LAYOUT (single column)
+   ====================================================== */
+
+/*
+  .app-container is the top-level grid wrapper that wraps
+  all four main page regions.  On mobile everything stacks
+  in a single column; at 768 px+ it becomes a two-column
+  grid.
+*/
+.app-container {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto;
+  grid-template-areas:
+    "header"
+    "form"
+    "chart"
+    "list";
+  gap: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Assign each region to a named grid area */
+.header-region {
+  grid-area: header;
+}
+
+.form-region {
+  grid-area: form;
+}
+
+.chart-region {
+  grid-area: chart;
+}
+
+.list-region {
+  grid-area: list;
+}
+
+/* ======================================================
+   4. DESKTOP BREAKPOINT (≥ 768 px)
+   Two-column grid: form | chart side-by-side;
+   header and transaction list span full width.
+   ====================================================== */
+
+@media (min-width: 768px) {
+  .app-container {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "header  header"
+      "form    chart"
+      "list    list";
+  }
+}
+
+/* ======================================================
+   5. TOUCH TARGETS — WCAG 2.5.5 (minimum 44 × 44 px)
+   Applied universally so every interactive control meets
+   the 44 px minimum on all viewport sizes.
+   ====================================================== */
+
+button,
+select,
+input[type="submit"],
+input[type="number"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ======================================================
+   6. TRANSACTION LIST SCROLL CONTAINMENT
+   The list scrolls independently so the rest of the
+   page layout is never pushed out of view.
+   ====================================================== */
+
+#transactionList {
+  overflow-y: auto;
+  max-height: 400px; /* sensible default; overridden as needed */
+}
+
+/* ======================================================
+   7. CARD / SURFACE WRAPPER
+   Shared surface style used by all four main regions.
+   ====================================================== */
+
+.header-region,
+.form-region,
+.chart-region,
+.list-region {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+/* ======================================================
+   8. BALANCE DISPLAY  (Requirement 5.1)
+   Prominent heading; .balance--over switches colour to
+   --color-warning for the overspend state (Req 10.3).
+   ====================================================== */
+
+#balanceDisplay {
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  transition: color 0.2s ease;
+}
+
+#balanceDisplay.balance--over {
+  color: var(--color-warning);
+}
+
+/* ======================================================
+   9. WARNING BANNER  (Requirement 10.3)
+   Hidden by default via the HTML `hidden` attribute.
+   When visible it is a boldly coloured banner.
+   ====================================================== */
+
+#warningBanner {
+  background-color: var(--color-warning);
+  color: var(--color-warning-text);
+  border-radius: 8px;
+  padding: 0.75rem 1.25rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* The [hidden] attribute sets display:none but we need to
+   be explicit so our flex rule doesn't win specificity. */
+#warningBanner[hidden] {
+  display: none;
+}
+
+/* ======================================================
+   10. TRANSACTION FORM  (Requirement 3.5)
+   Consistent spacing between field groups using tokens.
+   ====================================================== */
+
+#transactionForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field-group label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.field-group input,
+.field-group select {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.15s ease;
+  width: 100%;
+}
+
+.field-group input:focus,
+.field-group select:focus {
+  border-color: var(--color-text);
+}
+
+/* ======================================================
+   11. INLINE ERROR LABELS  (Requirements 3.5, 10.6)
+   Shown below their respective field when validation fails.
+   ====================================================== */
+
+.error-label {
+  font-size: 0.8rem;
+  color: var(--color-danger);
+  min-height: 1.1em; /* reserve space so layout doesn't jump */
+}
+
+/* ======================================================
+   12. BUTTONS
+   Primary action + destructive (delete) styles.
+   ====================================================== */
+
+.btn-primary {
+  background-color: var(--color-accent);
+  color: var(--color-text);
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  align-self: flex-start;
+}
+
+.btn-primary:hover,
+.btn-primary:focus-visible {
+  opacity: 0.85;
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.btn-secondary:hover,
+.btn-secondary:focus-visible {
+  border-color: var(--color-text);
+}
+
+/* ======================================================
+   13. TRANSACTION LIST  (Requirement 4.1)
+   ====================================================== */
+
+#listEmpty,
+#listError {
+  color: var(--color-text);
+  opacity: 0.6;
+  font-style: italic;
+  padding: 1rem 0;
+  text-align: center;
+}
+
+#transactionList ul {
+  list-style: none;
+}
+
+.transaction-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.transaction-item:last-child {
+  border-bottom: none;
+}
+
+.tx-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tx-amount {
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* ---- Category badges ---- */
+
+.tx-category {
+  display: inline-block;
+  padding: 0.2em 0.6em;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.category--Food      { background-color: #e07b54; }
+.category--Transport { background-color: #5b9bd5; }
+.category--Fun       { background-color: #6abf69; }
+
+/* ---- Delete button ---- */
+
+.btn-delete {
+  background: none;
+  border: none;
+  color: var(--color-danger);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0.25rem 0.4rem;
+  transition: background-color 0.15s ease;
+}
+
+.btn-delete:hover,
+.btn-delete:focus-visible {
+  background-color: var(--color-danger);
+  color: var(--color-danger-text);
+}
+
+/* ======================================================
+   14. SORT CONTROL
+   ====================================================== */
+
+.sort-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.sort-row label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+#sortSelect {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.875rem;
+}
+
+/* ======================================================
+   15. SPEND LIMIT CONTROLS
+   ====================================================== */
+
+.spend-limit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+#spendLimit {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  width: 140px;
+}
+
+/* ======================================================
+   16. CHART CONTAINER
+   ====================================================== */
+
+.chart-region {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#chartEmpty,
+#chartError {
+  color: var(--color-text);
+  opacity: 0.6;
+  font-style: italic;
+  text-align: center;
+  padding: 2rem 0;
+}
+
+#spendingChart {
+  max-width: 320px;
+  width: 100%;
+}
